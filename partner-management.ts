@@ -32,6 +32,7 @@ declare const module: any;
 // Configuration - Update these values or use environment variables
 const AUTH_BASE_URL = "https://services.antonnia.com/auth/api/v1";
 const ASSISTANTS_BASE_URL = "https://services.antonnia.com/assistants/api/v1";
+const WHATSAPP_BASE_URL = "https://services.antonnia.com/whatsapp/api/v1";
 const API_TOKEN = process.env.API_TOKEN || "your-api-token-here";
 
 // Default configuration values
@@ -39,7 +40,8 @@ const DEFAULT_MEMBER_EMAIL = process.env.DEFAULT_MEMBER_EMAIL || "admin@example.
 const DEFAULT_MEMBER_ROLE = process.env.DEFAULT_MEMBER_ROLE || "admin";
 const SOURCE_ASSISTANT_ID = process.env.SOURCE_ASSISTANT_ID || "your-source-assistant-id";
 const SOURCE_ORGANIZATION_ID = process.env.SOURCE_ORGANIZATION_ID || "your-source-organization-id";
-
+const HUBLA_APP_ID = process.env.HUBLA_APP_ID || "519e9f1e-9e9c-4365-b803-36a3f07d8937";
+const WHATSAPP_APP_ID = process.env.WHATSAPP_APP_ID || "abc2ba2e-2e7c-4f31-a3d0-e44cf8b5ca7fd";
 // Types
 interface Organization {
   id: string;
@@ -99,8 +101,7 @@ async function makeApiRequest<T>(url: string, options: RequestInit = {}): Promis
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...options.headers
-    },
-    ...options
+    }
   });
   
   return handleApiResponse<T>(response);
@@ -234,8 +235,64 @@ async function processAllOrganizations(
   }
 }
 
+
+async function connectToHublaApp(organizationId: string = SOURCE_ORGANIZATION_ID, appId: string = HUBLA_APP_ID, token: string = API_TOKEN) {
+
+  const url = `${AUTH_BASE_URL}/partner/organizations/${organizationId}/apps/${appId}`;
+  const result = await makeApiRequest(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  return result.success ? result.data! : null;
+}
+
+async function connectToWhatsAppApp(organizationId: string = SOURCE_ORGANIZATION_ID, appId: string = WHATSAPP_APP_ID, token: string = API_TOKEN) {
+  const url = `${AUTH_BASE_URL}/partner/organizations/${organizationId}/apps/${appId}`;
+  const result = await makeApiRequest(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  return result.success ? result.data! : null;
+}
+
+async function createOrganizationToken(organizationId: string, appId: string, keyName: string | null = null, token: string = API_TOKEN) {
+  const url = `${AUTH_BASE_URL}/partner/organizations/${organizationId}/tokens`;
+  const result = await makeApiRequest(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ key_name: keyName, app_id: appId })
+  });
+  return result.success ? result.data! : null;
+}
+
+async function startWhatsAppConversation(
+  channel_id: string, 
+  contact_name: string,
+  contact_phone: string,
+  template_id: string,
+  template_parameters: Record<string, any> | null = null,
+  metadata: Record<string, any> | null = null,
+  client_token: string, // THIS IS NOT PARTNER TOKEN< ITS THE ONE CREATED USING createOrganizationToken
+) {
+  const url = `${WHATSAPP_BASE_URL}/start-conversation`;
+  const result = await makeApiRequest(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${client_token}`
+    },
+    body: JSON.stringify({ channel_id, contact_name, contact_phone, template_id, template_parameters, metadata })
+  });
+  return result.success ? result.data! : null;
+}
+
 // Main execution
-async function main() {
+async function createOrganizationsWithPartnerToken() {
   try {
     const organization_names = [
         "Company A",
@@ -283,5 +340,5 @@ async function main() {
 
 // Run the script
 if (require.main === module) {
-  main();
+  createOrganizationsWithPartnerToken();
 }
